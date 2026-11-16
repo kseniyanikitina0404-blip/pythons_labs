@@ -1,0 +1,131 @@
+import numpy as np
+import time
+import timeit
+import math
+from scipy import sparse
+def print_header(title):
+    print(f"\n{'*' * 15} {title} {'*' * 15}")
+print_header("ЗАДАЧА 1: Пределы точности float")
+f32_array = np.full(10000, 0.1, dtype=np.float32)
+f64_array = np.full(10000, 0.1, dtype=np.float64)
+sum_f32 = np.sum(f32_array)
+sum_f64 = np.sum(f64_array)
+exact_sum = math.fsum([0.1] * 10000)
+
+print(f"[1.1] Сумма 10000 элементов по 0.1:")
+print(f"  - float32: {sum_f32:.6f}")
+print(f"  - float64: {sum_f64:.6f}")
+print(f"  - Точное значение (math): {exact_sum:.6f}")
+print(f"  - Ошибка float32: {abs(sum_f32 - exact_sum):.2e}")
+print(f"\n[1.2] Машинный эпсилон (минимальный шаг):")
+print(f"  - float32: {np.finfo(np.float32).eps:.2e}")
+print(f"  - float64: {np.finfo(np.float64).eps:.2e}")
+
+a32, b32 = np.float32(10 ** 7), np.float32(10 ** 7 + 1e-3)
+a64, b64 = np.float64(10 ** 7), np.float64(10 ** 7 + 1e-3)
+print(f"\n[1.3] Потеря точности (10^7 - (10^7 + 1e-3)):")
+print(f"  - Результат float32: {a32 - b32} (полный ноль из-за отмены!)")
+print(f"  - Результат float64: {a64 - b64:.6f}")
+
+print_header("ЗАДАЧА 2: Срезы и логика")
+np.random.seed(42)
+matrix = np.random.randint(-5, 15, size=(4, 5))
+print(f"Исходная матрица:\n{matrix}")
+
+print(f"\n[2.1] Базовые срезы:")
+print(f"  - Строка 1: {matrix[1]}")
+print(f"  - Столбец 3: {matrix[:, 3]}")
+print(f"  - Подматрица (строки 1-3, столбцы 2-4):\n{matrix[1:4, 2:5]}")
+
+print(f"\n[2.2] Fancy-индексация (строки 0, 2, 3 и столбцы 1, 4):")
+print(matrix[[0, 2, 3]][:, [1, 4]])
+
+matrix_clean = np.where(matrix < 0, 0, matrix)
+print(f"\n[2.3] Замена отрицательных на 0:\n{matrix_clean}")
+
+row_vec = np.array([10, 20, 30, 40, 50])  # (5,)
+col_vec = np.array([1, 2, 3, 4])[:, np.newaxis]  # (4, 1) - вот так еще можно!
+print(f"\n[2.4] Broadcasting (сложение вектора-столбца и вектора-строки):")
+print(f"  Форма столбца: {col_vec.shape}, Форма строки: {row_vec.shape}")
+print(f"  Результат:\n{col_vec + row_vec}")
+print_header("ЗАДАЧА 3: Работа с диском и кэшем")
+
+mmap_filename = 'big_matrix.dat'
+size = 1500
+mm = np.memmap(mmap_filename, dtype='float64', mode='w+', shape=(size, size))
+mm[:] = np.random.rand(size, size)
+mm.flush()
+
+print(f"[3.1] Создан memory-mapped файл {mmap_filename} размером {size}x{size}")
+print(f"[3.2] Чтение без загрузки в ОЗУ:")
+print(f"  - Строка 10 (сумма): {np.sum(mm[10, :]):.2f}")
+print(f"  - Столбец 10 (сумма): {np.sum(mm[:, 10]):.2f}")
+def sum_rows():
+    return np.sum(mm, axis=1)
+def sum_cols():
+    return np.sum(mm, axis=0)
+t_row = timeit.timeit(sum_rows, number=1)
+t_col = timeit.timeit(sum_cols, number=1)
+
+print(f"\n[3.3] Время обхода (timeit):")
+print(f"  - По строкам (axis=1): {t_row:.4f} сек")
+print(f"  - По столбцам (axis=0): {t_col:.4f} сек")
+print(f"  - Столбцы медленнее в {t_col / t_row:.1f} раз!")
+print(f"  *Причина: данные хранятся построчно, при чтении столбцов происходят промахи кэша (cache misses).")
+
+print_header("ЗАДАЧА 4: Sparse Matrix")
+rows = np.array([0, 0, 1, 2, 3, 4])
+cols = np.array([1, 4, 2, 3, 0, 4])
+data = np.array([1.5, 2.5, 3.5, 4.5, 5.5, 6.5])
+coo = sparse.coo_matrix((data, (rows, cols)), shape=(5, 5))
+
+csr = coo.tocsr()
+csc = coo.tocsc()
+
+print(f"[4.1] Матрица создана вручную. Плотность: {csr.nnz / 25 * 100:.0f}%")
+print(f"CSR формат:\n{csr}")
+
+print(f"\n[4.2] Конвертация форматов:")
+print(f"  - COO (координаты): {coo.nnz} элементов")
+print(f"  - CSC (по столбцам): {csc.nnz} элементов")
+
+vec = np.array([1, 2, 3, 4, 5])
+print(f"\n[4.3] Умножение на вектор {vec}:")
+print(f"  Результат: {csr.dot(vec)}")
+
+size_large = 1200
+sparse_large = sparse.random(size_large, size_large, density=0.01, format='csr')
+dense_large = sparse_large.toarray()
+vec_large = np.random.rand(size_large)
+
+t_sp = timeit.timeit(lambda: sparse_large.dot(vec_large), number=10)
+t_dn = timeit.timeit(lambda: dense_large.dot(vec_large), number=10)
+
+print(f"\n[4.4] Сравнение для {size_large}x{size_large} (плотность 1%):")
+print(f"  - Размер плотной матрицы в памяти: {dense_large.nbytes / (1024 ** 2):.1f} МБ")
+print(f"  - Размер разреженной (CSR): {csr.nbytes / 1024:.1f} КБ")
+print(f"  - Время sparse: {t_sp:.6f} сек")
+print(f"  - Время dense:  {t_dn:.6f} сек")
+print(f"  - Sparse быстрее в {t_dn / t_sp:.0f} раз!")
+
+print_header("ЗАДАЧА 5: Ускорение через Cython")
+def py_square_sum(arr):
+    return sum(x * x for x in arr)
+try:
+    import sum_of_squares_cy
+    test_data = np.random.rand(5_000_000)
+    t_py = timeit.timeit(lambda: py_square_sum(test_data), number=1)
+    t_cy = timeit.timeit(lambda: sum_of_squares_cy.sum_of_squares_cy(test_data), number=1)
+
+    print(f"  Массив из {len(test_data):,} элементов")
+    print(f"  - Чистый Python: {t_py:.4f} сек")
+    print(f"  - Cython:        {t_cy:.4f} сек")
+    print(f"  - Cython быстрее в {t_py / t_cy:.1f} раз!")
+
+except ImportError:
+    print("  [Внимание] Модуль Cython не найден.")
+    print("  Чтобы увидеть магию ускорения, скомпилируйте .pyx файл:")
+    print("  python setup.py build_ext --inplace")
+
+print("\n" + "=" * 50)
+print("Все задания успешно выполнены!")
