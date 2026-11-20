@@ -1,0 +1,86 @@
+import pandas as pd
+import numpy as np
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+print("ЗАДАЧА 1: Создание объектов pandas")
+s = pd.Series([100, 200, 300, 400], index=['a', 'b', 'c', 'd'])
+print("1.1 Series:\n", s, "\n")
+data_dict = {
+    'Имя': ['Анна', 'Иван', 'Мария'],
+    'Возраст': [25, 30, 22],
+    'Город': ['Москва', 'СПб', 'Казань']
+}
+df_dict = pd.DataFrame(data_dict)
+print("1.2 DataFrame из словаря:\n", df_dict, "\n")
+
+print("1.3 Первые 2 строки:\n", df_dict.head(2))
+print("\nПоследняя 1 строка:\n", df_dict.tail(1))
+print("\nТипы данных (info):")
+df_dict.info()
+print("\nСтатистика (describe):\n", df_dict.describe())
+data = {
+    'name': ['Алексей', 'Борис', 'Виктория', 'Глеб', 'Дарья', 'Егор', 'Жанна'],
+    'department': ['IT', 'IT', 'HR', 'Finance', 'HR', 'IT', 'Finance'],
+    'salary': [80000, np.nan, 60000, 90000, 65000, 75000, np.nan],
+    'bonus': [5000, 3000, np.nan, 10000, 2000, np.nan, 4000],
+    'hire_date': ['2020-01-01', '2019-05-15', '2021-03-10', '2018-11-20', '2022-07-01', '2020-08-15', '2017-04-25']
+}
+df = pd.DataFrame(data)
+
+print("ЗАДАЧА 2: Доступ к данным и новые столбцы")
+it_emp = df[df['department'] == 'IT'][['name', 'salary']]
+print("2.1 Сотрудники IT (name, salary):\n", it_emp, "\n")
+print("2.2 Первые 3 строки и 2 столбца (iloc):\n", df.iloc[:3, :2], "\n")
+rich_emp = df[df['salary'] > 70000]
+print("2.3 Зарплата > 70000:\n", rich_emp[['name', 'salary']], "\n")
+df['total_comp'] = df['salary'] + df['bonus'].fillna(0)
+print("2.4 Добавлен столбец total_comp:\n", df[['name', 'salary', 'bonus', 'total_comp']], "\n")
+df = df.drop(columns=['hire_date'])
+print("2.5 Столбец hire_date удален. Оставшиеся столбцы:", list(df.columns), "\n")
+print("ЗАДАЧА 3: Работа с пропусками")
+print("3.1 Пропуски в каждом столбце:\n", df.isnull().sum(), "\n")
+df['salary'] = df.groupby('department')['salary'].transform(lambda x: x.fillna(x.mean()))
+print("3.2 Пропуски в salary заполнены средним по отделу:\n", df[['name', 'department', 'salary']], "\n")
+df['bonus'] = df['bonus'].fillna(0)
+print("3.3 Пропуски в bonus заполнены нулем:\n", df[['name', 'bonus']], "\n")
+df = df.dropna(subset=['salary'])
+df['total_comp'] = df['salary'] + df['bonus']
+print("ЗАДАЧА 4: Groupby, агрегатные функции и сводные таблицы")
+avg_salary = df.groupby('department')['salary'].mean()
+print("4.1 Средняя зарплата по отделам:\n", avg_salary, "\n")
+agg_stats = df.groupby('department').agg({
+    'salary': 'mean',
+    'bonus': 'max',
+    'name': 'count'
+}).rename(columns={'name': 'emp_count'})
+print("4.2 Агрегированная статистика по отделам:\n", agg_stats, "\n")
+pivot = df.pivot_table(index='department', values='salary', aggfunc='mean')
+print("4.3 Сводная таблица (Pivot):\n", pivot, "\n")
+sorted_depts = df.groupby('department')['salary'].mean().sort_values(ascending=False)
+print("4.4 Отделы по убыванию средней зарплаты:\n", sorted_depts, "\n")
+print("ЗАДАЧА 5: Объединение DataFrame (merge и concat)")
+managers = pd.DataFrame({
+    'department': ['IT', 'HR', 'Finance'],
+    'manager': ['Сидоров', 'Петрова', 'Иванов']
+})
+print("5.1 DataFrame managers:\n", managers, "\n")
+df_merged = df.merge(managers, on='department', how='left')
+print("5.2 Left join df и managers:\n", df_merged[['name', 'department', 'manager']], "\n")
+new_emp = pd.DataFrame([{
+    'name': 'Зоя',
+    'department': 'HR',
+    'salary': 70000,
+    'bonus': 5000,
+    'total_comp': 75000,
+    'manager': 'Петрова'
+}])
+df_final = pd.concat([df_merged, new_emp], ignore_index=True)
+print("5.3 После добавления новой строки:\n", df_final.tail(3), "\n")
+df_final = df_final.reset_index(drop=True)
+print("ЗАДАЧА 6: Анализ данных")
+top3 = df_final.sort_values(by='total_comp', ascending=False).head(3)
+print("6.1 Топ-3 сотрудника по total_comp:\n", top3[['name', 'department', 'total_comp']], "\n")
+dept_avg = df_final.groupby('department')[['salary', 'bonus']].mean()
+print("6.2 Средняя зарплата и бонус по отделам:\n", dept_avg, "\n")
+share_above_75k = df_final.groupby('department')['salary'].apply(lambda x: (x > 75000).mean())
+print("6.3 Доля сотрудников с зарплатой > 75000 по отделам:\n", share_above_75k)
